@@ -27,6 +27,7 @@ class BrokerView(BaseHandler):
             broker_use_ssl = self.capp.conf.BROKER_USE_SSL
 
         try:
+            # broker实例
             broker = Broker(app.capp.connection(connect_timeout=1.0).as_uri(include_password=True),
                             http_api=http_api, broker_options=broker_options, broker_use_ssl=broker_use_ssl)
         except NotImplementedError:
@@ -35,6 +36,7 @@ class BrokerView(BaseHandler):
 
         queues = {}
         try:
+            # 队列名
             queue_names = self.get_active_queue_names()
             if not queue_names:
                 queue_names = set([self.capp.conf.CELERY_DEFAULT_QUEUE]) |\

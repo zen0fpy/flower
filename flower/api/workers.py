@@ -156,18 +156,22 @@ List workers
         status = self.get_argument('status', default=False, type=bool)
         workername = self.get_argument('workername', default=None)
 
+        # 指定worker状态
         if status:
             info = {}
+            # 返回State里面存活的worker
             for name, worker in self.application.events.state.workers.items():
                 info[name] = worker.alive
             self.write(info)
             return
 
+        # 非刷新和指定worker名字
         if self.application.workers and not refresh and\
                 workername in self.application.workers:
             self.write({workername: self.application.workers[workername]})
             return
 
+        # 刷新内存worker信息再返回
         if refresh:
             try:
                 yield self.application.update_workers(workername=workername)
@@ -182,4 +186,5 @@ List workers
         if workername:
             self.write({workername: self.application.workers[workername]})
         else:
+            # 全部worker
             self.write(self.application.workers)

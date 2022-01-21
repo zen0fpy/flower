@@ -34,7 +34,7 @@ def get_prometheus_metrics():
 
 
 class PrometheusMetrics(object):
-
+    # 监控指标, 可以保存到promethus 或者influxdb
     def __init__(self):
         self.events = PrometheusCounter('flower_events_total', "Number of events", ['worker', 'type', 'task'])
 
@@ -63,25 +63,34 @@ class PrometheusMetrics(object):
 
 
 class EventsState(State):
+    """封装celery State基类"""
     # EventsState object is created and accessed only from ioloop thread
 
     def __init__(self, *args, **kwargs):
         super(EventsState, self).__init__(*args, **kwargs)
+        # 设置counter默认值
         self.counter = collections.defaultdict(Counter)
         self.metrics = get_prometheus_metrics()
 
     def event(self, event):
+        """保存数据"""
         # Save the event
         super(EventsState, self).event(event)
 
+        # worker名字
         worker_name = event['hostname']
+        # 事件类型: started， failed, received等
         event_type = event['type']
 
         self.counter[worker_name][event_type] += 1
 
+        # 任务事件
         if event_type.startswith('task-'):
+            # 任务id
             task_id = event['uuid']
+            # 任务信息
             task = self.tasks.get(task_id)
+            # 任务名
             task_name = event.get('name', '')
             if not task_name and task_id in self.tasks:
                 task_name = task.name or ''
@@ -117,6 +126,7 @@ class EventsState(State):
         if event_type == 'worker-offline':
             self.metrics.worker_online.labels(worker_name).set(0)
 
+        # 通过websocket api发送任务事件到前端页面
         # Send event to api subscribers (via websockets)
         classname = api.events.getClassName(event_type)
         cls = getattr(api.events, classname, None)
@@ -124,7 +134,10 @@ class EventsState(State):
             cls.send_message(event)
 
 
+
 class Events(threading.Thread):
+    # 封装线程基类， 用线程方式启动
+    # 在后台执行来监听事件
     events_enable_interval = 5000
 
     def __init__(self, capp, db=None, persistent=False,
@@ -137,9 +150,12 @@ class Events(threading.Thread):
         self.capp = capp
 
         self.db = db
+        # 事件状态是否持久化
         self.persistent = persistent
+        # 激活事件
         self.enable_events = enable_events
         self.state = None
+        # 保存定时器
         self.state_save_timer = None
 
         if self.persistent:
@@ -149,13 +165,17 @@ class Events(threading.Thread):
                 self.state = state['events']
             state.close()
 
+            # 多久保存一次状态信息
+            # 定时运行回调函数
             if state_save_interval:
                 self.state_save_timer = PeriodicCallback(self.save_state,
                                                          state_save_interval)
 
+        # 初始化状态
         if not self.state:
             self.state = EventsState(**kwargs)
 
+        # 定时激活事件
         self.timer = PeriodicCallback(self.on_enable_events,
                                       self.events_enable_interval)
 
@@ -182,15 +202,21 @@ class Events(threading.Thread):
             self.save_state()
 
     def run(self):
+        """
+            run函数在线程启动，被start函数调用
+        """
         try_interval = 1
         while True:
             try:
                 try_interval *= 2
 
+                # 捕获celery事件
+                # handlers里面是事件回调函数
                 with self.capp.connection() as conn:
                     recv = EventReceiver(conn,
                                          handlers={"*": self.on_event},
                                          app=self.capp)
+                    # 重置 重试间隔
                     try_interval = 1
                     logger.debug("Capturing events...")
                     recv.capture(limit=None, timeout=None, wakeup=True)
@@ -199,6 +225,7 @@ class Events(threading.Thread):
                     import _thread as thread
                 except ImportError:
                     import thread
+                # 会在主线程中抛出一个键盘中断异常
                 thread.interrupt_main()
             except Exception as e:
                 logger.error("Failed to capture events: '%s', "
@@ -216,8 +243,10 @@ class Events(threading.Thread):
     def on_enable_events(self):
         # Periodically enable events for workers
         # launched after flower
+        # 执行worker激活事件
         self.io_loop.run_in_executor(None, self.capp.control.enable_events)
 
     def on_event(self, event):
         # Call EventsState.event in ioloop thread to avoid synchronization
+        # 监听事件，进行处理
         self.io_loop.add_callback(partial(self.state.event, event))

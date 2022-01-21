@@ -58,8 +58,10 @@ class TasksDataTable(BaseHandler):
         def key(item):
             return Comparable(getattr(item[1], sort_by))
 
+        # 执行按时间戳来排序
         self.maybe_normalize_for_sort(app.events.state.tasks_by_timestamp(), sort_by)
 
+        # 迭代任务
         sorted_tasks = sorted(
             iter_tasks(app.events, search=search),
             key=key,

@@ -19,6 +19,8 @@ class Inspector(object):
         self.workers = collections.defaultdict(dict)
 
     def inspect(self, workername=None):
+        # 遍历和执行methods元组里面方法，并拿到数据
+        # partial能够组合函数和参数成一个新函数，fn传参地方传入
         feutures = []
         for method in self.methods:
             feutures.append(self.io_loop.run_in_executor(None, partial(self._inspect, method, workername)))
@@ -28,8 +30,11 @@ class Inspector(object):
         info = self.workers[workername]
         info[method] = response
         info['timestamp'] = time.time()
+        print(info)
 
     def _inspect(self, method, workername):
+        # 通过内省方法
+        # 存在worker名字, 只获取对应worker信息
         destination = [workername] if workername else None
         inspect = self.capp.control.inspect(timeout=self.timeout, destination=destination)
 

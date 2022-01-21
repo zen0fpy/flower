@@ -48,15 +48,21 @@ class Flower(tornado.web.Application):
         kwargs.update(handlers=handlers)
         super(Flower, self).__init__(**kwargs)
         self.options = options or default_options
+        # 事件循环
         self.io_loop = io_loop or ioloop.IOLoop.instance()
         self.ssl_options = kwargs.get('ssl_options', None)
 
+        # celery app
         self.capp = capp or celery.Celery()
+
+        # celery加载模块
         self.capp.loader.import_default_modules()
 
+        # 线程池
         self.executor = self.pool_executor_cls(max_workers=self.max_workers)
         self.io_loop.set_default_executor(self.executor)
 
+        # 内省器，操作celery worker
         self.inspector = Inspector(self.io_loop, self.capp, self.options.inspect_timeout / 1000.0)
 
         self.events = events or Events(

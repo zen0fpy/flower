@@ -6,6 +6,7 @@ from .search import satisfies_search_terms, parse_search_terms
 from celery.events.state import Task
 
 
+# 根据指定参数迭代任务
 def iter_tasks(events, limit=None, offset=0, type=None, worker=None, state=None,
                sort_by=None, received_start=None, received_end=None,
                started_start=None, started_end=None, search=None):
@@ -65,7 +66,10 @@ def sort_tasks(tasks, sort_by):
 
 
 def get_task_by_id(events, task_id):
+
     if hasattr(Task, '_fields'):  # Old version
+        # tasks 是celery State里面一个属性，LRU(保存任务信息)
+        # 类似还有workers
         return events.state.tasks.get(task_id)
     else:
         _fields = Task._defaults.keys()
